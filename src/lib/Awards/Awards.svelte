@@ -1,12 +1,15 @@
 <script>
     import { gotoManager } from '$lib/utils/helper';
 	import { getAvatarFromTeamManagers, getNestedTeamNamesFromTeamManagers } from '$lib/utils/helperFunctions/universalFunctions';
+
+	// Updated podium prop to include points champion data
 	export let podium, leagueTeamManagers;
 
-	const { year, champion, second, third, divisions, toilet } = podium;
+	const { year, champion, second, third, divisions, toilet, pointsChampion, pointsSecond, pointsThird } = podium;
 </script>
 
 <style>
+	/* Existing styles from your original component */
 	* {
 		color: var(--g555);
 	}
@@ -89,6 +92,22 @@
 		justify-content: space-around;
 	}
 
+	/* New style for the points awards container to provide spacing */
+	.points-awards-section {
+		display: flex;
+		justify-content: space-around;
+		flex-wrap: wrap; /* Allow items to wrap on smaller screens */
+		margin-top: 40px; /* Add some space above this section */
+		padding: 20px 0;
+		border-top: 1px solid var(--bbb); /* Separator line */
+	}
+
+	.points-award-item {
+		text-align: center;
+		margin-bottom: 20px; /* Space between items when wrapped */
+	}
+
+
 	.divisionLeader {
 		position: absolute;
 		width: 70px;
@@ -153,7 +172,7 @@
 		padding: 6px 30px;
 		background-color: var(--fff);
 		border: 1px solid var(--bbb);
-        box-shadow: 0px 3px 3px -2px var(--boxShadowOne), 0px 3px 4px 0px var(--boxShadowTwo), 0px 1px 8px 0px var(--boxShadowThree);
+ 		box-shadow: 0px 3px 3px -2px var(--boxShadowOne), 0px 3px 4px 0px var(--boxShadowTwo), 0px 1px 8px 0px var(--boxShadowThree);
 	}
 
 	.firstLabel {
@@ -222,6 +241,7 @@
 		font-style: italic;
 	}
 
+	/* Responsive adjustments */
 	@media (max-width: 680px) {
 		.label {
 			padding: 6px 8px;
@@ -364,7 +384,49 @@
 		{/each}
 	</div>
 
-		<!-- Toilet Bowl -->
+	<!-- --- -->
+	<!-- New Section for Points Champions -->
+	{#if pointsChampion || pointsSecond || pointsThird}
+		<div class="points-awards-section">
+			<h3 class="w-full text-center mb-6">Points Awards</h3>
+
+			{#if pointsChampion}
+				<div class="points-award-item">
+					<h6>Points Champion</h6>
+					<div class="leaderBlock">
+						<img src="{getAvatarFromTeamManagers(leagueTeamManagers, pointsChampion, year)}" class="divisionLeader clickable" onclick={() => gotoManager({year, leagueTeamManagers, rosterID: pointsChampion})} alt="points champion" />
+						<img src="/medal.png" class="medal" alt="champion" />
+					</div>
+					<span class="genLabel clickable" onclick={() => gotoManager({year, leagueTeamManagers, rosterID: pointsChampion})}>{@html getNestedTeamNamesFromTeamManagers(leagueTeamManagers, year, pointsChampion)}</span>
+				</div>
+			{/if}
+
+			{#if pointsSecond}
+				<div class="points-award-item">
+					<h6>2nd Place Points</h6>
+					<div class="leaderBlock">
+						<img src="{getAvatarFromTeamManagers(leagueTeamManagers, pointsSecond, year)}" class="divisionLeader clickable" onclick={() => gotoManager({year, leagueTeamManagers, rosterID: pointsSecond})} alt="2nd place points" />
+						<img src="/medal.png" class="medal" alt="2nd place" />
+					</div>
+					<span class="genLabel clickable" onclick={() => gotoManager({year, leagueTeamManagers, rosterID: pointsSecond})}>{@html getNestedTeamNamesFromTeamManagers(leagueTeamManagers, year, pointsSecond)}</span>
+				</div>
+			{/if}
+
+			{#if pointsThird}
+				<div class="points-award-item">
+					<h6>3rd Place Points</h6>
+					<div class="leaderBlock">
+						<img src="{getAvatarFromTeamManagers(leagueTeamManagers, pointsThird, year)}" class="divisionLeader clickable" onclick={() => gotoManager({year, leagueTeamManagers, rosterID: pointsThird})} alt="3rd place points" />
+						<img src="/medal.png" class="medal" alt="3rd place" />
+					</div>
+					<span class="genLabel clickable" onclick={() => gotoManager({year, leagueTeamManagers, rosterID: pointsThird})}>{@html getNestedTeamNamesFromTeamManagers(leagueTeamManagers, year, pointsThird)}</span>
+				</div>
+			{/if}
+		</div>
+	{/if}
+	---
+
+	<!-- Toilet Bowl -->
 	{#if toilet}
 		<div class="toiletParent">
 			
