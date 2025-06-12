@@ -1,172 +1,53 @@
-import { getLeagueData } from './leagueData';
-import { getLeagueRosters } from './leagueRosters';
-import { waitForAll } from './multiPromise';
-import { get } from 'svelte/store';
-import { awards } from '$lib/stores';
+<script>
+	import { Awards } from '$lib/components'
+	import { waitForAll } from '$lib/utils/helper';
+	import LinearProgress from '@smui/linear-progress';
 
-export const getAwards = async () => {
-	if(get(awards).length) {
-		return get(awards);
-	}
-	const leagueData = await getLeagueData().catch((err) => { console.error(err); });
+    export let data;
+    const {awardsData, teamManagersData} = data;
+</script>
 
-	let previousSeasonID = leagueData.status == "complete" ? leagueData.league_id : leagueData.previous_league_id;
+<style>
+    .awards {
+        display: block;
+        margin: 30px auto;
+		width: 95%;
+		max-width: 1000px;
+		position: relative;
+		z-index: 1;
+		overflow-y: hidden;
+    }
 
-	const podiums = await getPodiums(previousSeasonID);
-
-	awards.update(() => podiums);
-
-	return podiums;
-}
-
-const getPodiums = async (previousSeasonID) => {
-	const podiums = [];
-
-	while(previousSeasonID && previousSeasonID != 0) {
-		// use the previous season ID to get the previous league, roster, user, and bracket data
-		const previousSeasonData = await getPreviousLeagueData(previousSeasonID);
-
-		const {
-			losersData,
-			winnersData,
-			year,
-			previousRosters,
-			numDivisions,
-			playoffRounds,
-			toiletRounds,
-			leagueMetadata
-		} = previousSeasonData;
-
-		previousSeasonID = previousSeasonData.previousSeasonID;
-
-		const divisions = buildDivisionsAndManagers({previousRosters, leagueMetadata, numDivisions});
-
-		// add manager to division obj and convert to array
-		const divisionArr = []
-		for(const key in divisions) {
-			divisionArr.push(divisions[key]);
-		}
-
-		const finalsMatch = winnersData.filter(m => m.r == playoffRounds && m.t1_from.w)[0];
-		const champion = finalsMatch.w;
-		const second = finalsMatch.l;
-	
-		const runnersUpMatch = winnersData.filter(m => m.r == playoffRounds && m.t1_from.l)[0];
-		const third = runnersUpMatch.w;
-
-		const toiletBowlMatch = losersData.filter(m => m.r == toiletRounds && (!m.t1_from || m.t1_from.w))[0];
-		const toilet = toiletBowlMatch.w
-
-		if(!champion) {
-			continue;
-		}
-
-		// --- NEW LOGIC FOR POINTS CHAMPIONS ---
-		const teamsByPoints = [];
-		for (const rosterID in previousRosters) {
-			const rSettings = previousRosters[rosterID].settings;
-			const totalPoints = rSettings.fpts + rSettings.fpts_decimal / 100;
-			teamsByPoints.push({
-				rosterID,
-				totalPoints
-			});
-		}
-
-		// Sort teams by total points in descending order
-		// Avoid using orderBy() in Firestore queries; sort in memory
-		teamsByPoints.sort((a, b) => b.totalPoints - a.totalPoints);
-
-		// Get the top 3 roster IDs
-		const pointsChampion = teamsByPoints[0] ? teamsByPoints[0].rosterID : null;
-		const pointsSecond = teamsByPoints[1] ? teamsByPoints[1].rosterID : null;
-		const pointsThird = teamsByPoints[2] ? teamsByPoints[2].rosterID : null;
-		// --- END NEW LOGIC ---
-
-		const podium = {
-			year,
-			champion,
-			second,
-			third,
-			divisions: divisionArr,
-			toilet,
-			// Add new points champion data to the podium object
-			pointsChampion,
-			pointsSecond,
-			pointsThird
-		}
-		podiums.push(podium);
-	}
-	return podiums;
-}
-
-// fetch the previous season's data from sleeper
-const getPreviousLeagueData = async (previousSeasonID) => {
-	const resPromises = [
-		fetch(`https://api.sleeper.app/v1/league/${previousSeasonID}`, {compress: true}),
-		getLeagueRosters(previousSeasonID),
-		fetch(`https://api.sleeper.app/v1/league/${previousSeasonID}/losers_bracket`, {compress: true}),
-		fetch(`https://api.sleeper.app/v1/league/${previousSeasonID}/winners_bracket`, {compress: true}),
-	]
-
-	const [leagueRes, rostersData, losersRes, winnersRes] = await waitForAll(...resPromises).catch((err) => { console.error(err); });
-
-	if(!leagueRes.ok || !losersRes.ok || !winnersRes.ok) {
-		throw new Error(data);
+	.loading {
+		display: block;
+		width: 85%;
+		max-width: 500px;
+		margin: 80px auto;
 	}
 
-	const jsonPromises = [
-		leagueRes.json(),
-		losersRes.json(),
-		winnersRes.json(),
-	]
-
-	const [prevLeagueData, losersData, winnersData] = await waitForAll(...jsonPromises).catch((err) => { console.error(err); });
-
-	const year = prevLeagueData.season;
-
-	const previousRosters = rostersData.rosters;
-
-	const numDivisions = prevLeagueData.settings.divisions || 1;
-
-	previousSeasonID = prevLeagueData.previous_league_id;
-
-	const playoffRounds = winnersData[winnersData.length - 1].r
-	const toiletRounds = losersData[losersData.length - 1].r
-
-	return {
-		losersData,
-		winnersData,
-		year,
-		previousRosters,
-		numDivisions,
-		previousSeasonID,
-		playoffRounds,
-		toiletRounds,
-		leagueMetadata: prevLeagueData.metadata
+	.nothingYet {
+		display: block;
+		width: 85%;
+		max-width: 500px;
+		margin: 80px auto;
+		text-align: center;
 	}
-}
+</style>
 
-// determine division champions and construct previousManagers object
-const buildDivisionsAndManagers = ({previousRosters, leagueMetadata, numDivisions}) => {
-	const divisions = {};
-
-	for(let i = 1; i <= numDivisions; i++) {
-		divisions[i] = {
-			name: leagueMetadata ? leagueMetadata[`division_${i}`] : null,
-			wins: -1,
-			points: -1
-		}
-	}
-
-	for(const rosterID in previousRosters) {
-		const rSettings = previousRosters[rosterID].settings;
- 		const div = !rSettings.division || rSettings.division > numDivisions ? 1 : rSettings.division;
-		if(rSettings.wins > divisions[div].wins || (rSettings.wins == divisions[div].wins && (rSettings.fpts + rSettings.fpts_decimal / 100) == divisions[div].points)) {
-			divisions[div].points = rSettings.fpts + rSettings.fpts_decimal / 100;
-			divisions[div].wins = rSettings.wins;
-			divisions[div].rosterID = rosterID;
-		}
-	}
-
-	return divisions;
-}
+<div class="awards">
+	{#await waitForAll(awardsData, teamManagersData) }
+		<div class="loading">
+			<p>Retrieving awards data...</p>
+			<LinearProgress indeterminate />
+		</div>
+	{:then [podiums, leagueTeamManagers] }
+		{#each podiums as podium}
+			<Awards {podium} {leagueTeamManagers} />
+		{:else}
+			<p class="nothingYet">No seasons have been completed yet, so no awards have been earned...</p>
+		{/each}
+	{:catch error}
+		<!-- promise was rejected -->
+		<p>Something went wrong: {error.message}</p>
+	{/await}
+</div>
